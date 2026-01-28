@@ -5,12 +5,13 @@ import { nanoid } from "@reduxjs/toolkit";
 
 
 export interface BookingsState {
-    existingBookings: Booking[]
-    selectedBookingId?: string
+    bookings: Booking[]
+    selectedBookingId: string | null
 }
 
 const initialState: BookingsState = {
-    existingBookings: []
+    bookings: [],
+    selectedBookingId: null
 }
 const bookingsSlice = createSlice({
     name: "bookings",
@@ -19,24 +20,37 @@ const bookingsSlice = createSlice({
         createNewBooking: (state, action: PayloadAction<Omit<Booking, "id">>) => {
             const booking = { id: nanoid(), ...action.payload }
 
-            state.existingBookings.push(booking)
+            state.bookings.push(booking)
         },
         updateBooking: (state, action: PayloadAction<Booking>) => {
-
+            const index = state.bookings.findIndex(b => b.id === action.payload.id);
+            if (index !== -1) {
+                state.bookings[index] = action.payload;
+            }
+            state.selectedBookingId = null;
         },
+
+        deleteBooking: (state, action: PayloadAction<string>) => {
+            state.bookings = state.bookings.filter(b => b.id !== action.payload);
+        },
+
         setSelectedBookingId: (state, action: PayloadAction<string>) => {
             state.selectedBookingId = action.payload
+        },
+
+        clearSelectedBookingId: (state) => {
+            state.selectedBookingId = null
         }
 
     }
 
 })
 
-export const { createNewBooking } = bookingsSlice.actions
+export const { createNewBooking, updateBooking, deleteBooking, setSelectedBookingId, clearSelectedBookingId } = bookingsSlice.actions
 
 export const bookingStateSelector = (state: RootState) => state.bookings;
 
-export const existingBookingSelector = createSelector(bookingStateSelector, state => state.existingBookings)
+export const existingBookingSelector = createSelector(bookingStateSelector, state => state.bookings)
 export const selectedBookingIdSelector = createSelector(bookingStateSelector, state => state.selectedBookingId)
 export const selectedBookingSelector = createSelector(existingBookingSelector, selectedBookingIdSelector, (existingBookings, selectedBookingId) =>
     existingBookings.find(booking => booking.id === selectedBookingId))
