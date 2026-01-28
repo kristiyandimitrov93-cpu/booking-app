@@ -7,30 +7,23 @@ import {
     selectedBookingSelector,
     createNewBooking,
     clearSelectedBookingId,
+    updateBooking,
 } from "../store/bookingsSlice";
 
 import { bookingSchema, checkDateOverlap, type BookingFormData } from "../utils/bookings";
 import { PROPERTIES } from "../constants/properties";
-import { useForm, type SubmitHandler } from "react-hook-form";
+import { useForm, useWatch, type SubmitHandler } from "react-hook-form";
 import { Alert, Button, Card, CardBody, CardHeader, Form, FormControl, FormGroup, FormLabel, FormSelect } from "react-bootstrap";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { format } from "date-fns";
-
-export const DEFAULT_FORM: BookingFormData = {
-    guestName: '',
-    email: '',
-    propertyId: '',
-    startDate: '',
-    endDate: '',
-    numberOfGuests: 1
-}
+import { format, startOfDay } from "date-fns";
+import { DEFAULT_FORM } from "../constants/bookingForm";
 
 export const BookingForm = () => {
     const dispatch = useDispatch();
     const bookings = useSelector(existingBookingSelector);
     const selectedBooking = useSelector(selectedBookingSelector);
     const [overlapError, setOverlapError] = useState<string | null>(null)
-    const form = useForm<BookingFormData, any, BookingFormData>({
+    const form = useForm<BookingFormData>({
         resolver: zodResolver(bookingSchema),
         defaultValues: DEFAULT_FORM,
         mode: "onBlur",
@@ -38,8 +31,12 @@ export const BookingForm = () => {
     })
 
 
-    const { register, reset, trigger, formState: { errors, isValid } } = form;
-    console.log(errors)
+    const { register, control, reset, formState: { errors, isValid } } = form;
+    const startDate = useWatch({ control, name: "startDate" });
+    const endDate = useWatch({ control, name: "endDate" });
+    const canSubmit = !!startDate && !!endDate && isValid;
+    const todayForDateInput = format(startOfDay(new Date()), "yyyy-MM-dd");
+
 
     const isEditing = Boolean(selectedBooking)
     useEffect(() => {
@@ -55,7 +52,7 @@ export const BookingForm = () => {
         } else {
             reset(DEFAULT_FORM)
         }
-    }, [selectedBooking]);
+    }, [selectedBooking, reset]);
 
 
 
@@ -88,8 +85,11 @@ export const BookingForm = () => {
             numberOfGuests: data.numberOfGuests
         };
 
-
-        dispatch(createNewBooking(booking));
+        if (isEditing) {
+            dispatch(updateBooking({ ...booking, id: selectedBooking!.id }))
+        } else {
+            dispatch(createNewBooking(booking));
+        }
         reset()
         setOverlapError(null)
     };
@@ -102,7 +102,7 @@ export const BookingForm = () => {
     }
 
     return (
-        <Card className="card shadow-sm">
+        <Card className="card shadow-sm position-sticky" style={{ top: 16 }}>
             <CardHeader className="card-body">
                 <h5 className="mb-0">{isEditing ? "Edit booking" : "New booking"}</h5>
             </CardHeader>
@@ -157,12 +157,9 @@ export const BookingForm = () => {
                         <FormLabel>Start Date</FormLabel>
                         <FormControl
                             type="date"
+                            min={todayForDateInput}
                             isInvalid={!!errors.startDate}
-                            {...register('startDate', {
-                                onChange: () => {
-                                    trigger(["startDate", "endDate"]);
-                                }
-                            })}
+                            {...register('startDate')}
                         />
                         <Form.Control.Feedback type="invalid">
                             {errors.startDate?.message}
@@ -173,12 +170,11 @@ export const BookingForm = () => {
                         <FormLabel>End Date</FormLabel>
                         <FormControl
                             type="date"
+                            disabled={!startDate}
+                            min={startDate || undefined}
                             isInvalid={!!errors.endDate}
-                            {...register('endDate', {
-                                onChange: () => {
-                                    trigger(["startDate", "endDate"]);
-                                }
-                            })}
+                            {...register('endDate')
+                            }
                         />
                         <Form.Control.Feedback type="invalid">
                             {errors.endDate?.message}
@@ -198,8 +194,16 @@ export const BookingForm = () => {
                             {errors.numberOfGuests?.message}
                         </Form.Control.Feedback>
                     </FormGroup>
-                    <Button type="submit" disabled={!isValid}>{isEditing ? 'Update booking' : 'Save'}</Button>
-                    {isEditing && <Button onClick={handleCancel}>Cancel</Button>}
+                    <div className="d-flex gap-2">
+                        {isEditing && (
+                            <Button type="button" variant="outline-secondary" onClick={handleCancel}>
+                                Cancel
+                            </Button>
+                        )}
+                        <Button className="ms-auto" type="submit" disabled={!canSubmit}>
+                            {isEditing ? "Update booking" : "Create booking"}
+                        </Button>
+                    </div>
                 </Form>
             </CardBody>
         </Card>
